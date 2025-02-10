@@ -1,0 +1,255 @@
+medlearn/
+│
+├── public/
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── main.js
+│   └── index.html
+│
+├── server/
+│   ├── db/
+│   │   └── db.json
+│   ├── routes/
+│   │   └── api.js
+│   └── server.js
+│
+├── package.json
+└── README.mdmkdir medlearn
+cd medlearn
+npm init -y
+npm install express body-parser cors jsonwebtoken bcryptjsconst express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const api = require("./routes/api");
+
+const app = express();
+const PORT = 5000;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use("/api", api);
+
+// Serve static files (frontend)
+app.use(express.static("public"));
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});const express = require("express");
+const router = express.Router();
+const fs = require("fs");
+const path = require("path");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+
+const dbPath = path.join(__dirname, "../db/db.json");
+
+// Helper function to read/write to the database
+const readDB = () => JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+const writeDB = (data) => fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+
+// User Registration
+router.post("/register", (req, res) => {
+  const { email, password } = req.body;
+  const db = readDB();
+
+  // Check if user already exists
+  if (db.users.find((user) => user.email === email)) {
+    return res.status(400).json({ message: "User already exists" });
+  }
+
+  // Hash password
+  const hashedPassword = bcrypt.hashSync(password, 10);
+  const newUser = { id: Date.now(), email, password: hashedPassword };
+
+  db.users.push(newUser);
+  writeDB(db);
+
+  res.status(201).json({ message: "User registered successfully" });
+});
+
+// User Login
+router.post("/login", (req, res) => {
+  const { email, password } = req.body;
+  const db = readDB();
+
+  const user = db.users.find((user) => user.email === email);
+  if (!user || !bcrypt.compareSync(password, user.password)) {
+    return res.status(400).json({ message: "Invalid credentials" });
+  }
+
+  // Generate JWT token
+  const token = jwt.sign({ id: user.id }, "secret_key", { expiresIn: "1h" });
+  res.json({ token });
+});
+
+// Fetch Learning Materials
+router.get("/materials", (req, res) => {
+  const db = readDB();
+  res.json(db.materials);
+});
+
+// Fetch Quizzes
+router.get("/quizzes", (req, res) => {
+  const db = readDB();
+  res.json(db.quizzes);
+});
+
+module.exports = router;{
+  "users": [],
+  "materials": [
+    { "id": 1, "title": "Anatomy Textbook", "price": 10000 },
+    { "id": 2, "title": "Pharmacology Notes", "price": 5000 }
+  ],
+  "quizzes": [
+    {
+      "id": 1,
+      "title": "Anatomy Quiz",
+      "questions": [
+        {
+          "question": "What is the largest organ in the human body?",
+          "options": ["Heart", "Skin", "Liver", "Brain"],
+          "answer": "Skin"
+        }
+      ]
+    }
+  ]
+}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedLearn</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome to MedLearn</h1>
+    <div id="auth">
+      <h2>Login</h2>
+      <form id="loginForm">
+        <input type="email" id="loginEmail" placeholder="Email" required>
+        <input type="password" id="loginPassword" placeholder="Password" required>
+        <button type="submit">Login</button>
+      </form>
+      <h2>Register</h2>
+      <form id="registerForm">
+        <input type="email" id="registerEmail" placeholder="Email" required>
+        <input type="password" id="registerPassword" placeholder="Password" required>
+        <button type="submit">Register</button>
+      </form>
+    </div>
+    <div id="dashboard" class="hidden">
+      <h2>Learning Materials</h2>
+      <ul id="materialsList"></ul>
+      <h2>Quizzes</h2>
+      <div id="quizContainer"></div>
+    </div>
+  </div>
+  <script src="js/main.js"></script>
+</body>
+</html>body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f4f4f4;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.hidden {
+  display: none;
+}
+
+form {
+  margin-bottom: 20px;
+}
+
+input, button {
+  display: block;
+  margin: 10px 0;
+  padding: 10px;
+  width: 100%;
+}const API_URL = "http://localhost:5000/api";
+
+// DOM Elements
+const authSection = document.getElementById("auth");
+const dashboardSection = document.getElementById("dashboard");
+const materialsList = document.getElementById("materialsList");
+const quizContainer = document.getElementById("quizContainer");
+
+// Fetch Learning Materials
+async function fetchMaterials() {
+  const response = await fetch(`${API_URL}/materials`);
+  const materials = await response.json();
+  materialsList.innerHTML = materials
+    .map((material) => `<li>${material.title} - TZS ${material.price}</li>`)
+    .join("");
+}
+
+// Fetch Quizzes
+async function fetchQuizzes() {
+  const response = await fetch(`${API_URL}/quizzes`);
+  const quizzes = await response.json();
+  quizContainer.innerHTML = quizzes
+    .map(
+      (quiz) => `
+      <div>
+        <h3>${quiz.title}</h3>
+        ${quiz.questions
+          .map(
+            (q) => `
+          <p>${q.question}</p>
+          <ul>
+            ${q.options.map((opt) => `<li>${opt}</li>`).join("")}
+          </ul>
+        `
+          )
+          .join("")}
+      </div>
+    `
+    )
+    .join("");
+}
+
+// Login
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("loginEmail").value;
+  const password = document.getElementById("loginPassword").value;
+
+  const response = await fetch(`${API_URL}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const data = await response.json();
+  if (data.token) {
+    authSection.classList.add("hidden");
+    dashboardSection.classList.remove("hidden");
+    fetchMaterials();
+    fetchQuizzes();
+  }
+});
+
+// Register
+document.getElementById("registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("registerEmail").value;
+  const password = document.getElementById("registerPassword").value;
+
+  const response = await fetch(`${API_URL}/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const data = await response.json();
+  alert(data.message);
+});node server/server.jshttp://localhost:5000
