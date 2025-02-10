@@ -46,7 +46,7 @@ const bcrypt = require("bcryptjs");
 const dbPath = path.join(__dirname, "../db/db.json");
 
 // Helper function to read/write to the database
-const readDB = () => JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+const readDB = () => JSON.parse(fs.readFileSync(dbPath, "u-8"));
 const writeDB = (data) => fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
 
 // User Registration
